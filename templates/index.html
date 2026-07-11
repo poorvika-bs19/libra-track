@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Library Management System</title>
+<style>
+  :root{
+    --navy:#1b2a4a; --gold:#c9a24b; --bg:#f5f3ee; --card:#ffffff;
+    --ok:#2e7d32; --err:#b3261e; --info:#1a5276; --line:#e4dfd4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:#222;}
+  header{background:var(--navy);color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+  header h1{margin:0;font-size:1.4rem;letter-spacing:.5px;}
+  header h1 span{color:var(--gold);}
+  header .actions a{color:#fff;text-decoration:none;background:rgba(255,255,255,.12);padding:8px 14px;border-radius:6px;margin-left:8px;font-size:.85rem;}
+  header .actions a:hover{background:var(--gold);color:var(--navy);}
+  main{max-width:1100px;margin:24px auto;padding:0 20px;}
+  .flash{padding:10px 16px;border-radius:6px;margin-bottom:10px;font-size:.92rem;}
+  .flash.success{background:#e8f5e9;color:var(--ok);border:1px solid #b7dfb9;}
+  .flash.error{background:#fdecea;color:var(--err);border:1px solid #f3c2bd;}
+  .flash.info{background:#eaf2fa;color:var(--info);border:1px solid #bcd8ee;}
+  .grid{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;}
+  @media (max-width:850px){.grid{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:20px;}
+  .card h2{margin-top:0;font-size:1.05rem;color:var(--navy);border-bottom:2px solid var(--gold);padding-bottom:8px;}
+  table{width:100%;border-collapse:collapse;font-size:.88rem;}
+  th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);}
+  th{color:#555;font-weight:600;}
+  .tag{padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:600;}
+  .tag.avail{background:#e8f5e9;color:var(--ok);}
+  .tag.issued{background:#fdecea;color:var(--err);}
+  form.inline{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  input,select{padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;}
+  button{padding:7px 14px;border:none;border-radius:6px;background:var(--navy);color:#fff;cursor:pointer;font-size:.85rem;}
+  button:hover{background:var(--gold);color:var(--navy);}
+  .search-bar{margin-bottom:16px;}
+  .search-bar input{width:250px;}
+  .muted{color:#777;font-size:.8rem;}
+</style>
+</head>
+<body>
+<header>
+  <h1>📚 <span>Campus</span> Library System</h1>
+  <div class="actions">
+    <a href="{{ url_for('reminders') }}">Send Overdue Reminders</a>
+    <a href="{{ url_for('save') }}">Save State</a>
+    <a href="{{ url_for('load') }}">Load State</a>
+  </div>
+</header>
+
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, msg in messages %}
+        <div class="flash {{ category }}">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card search-bar">
+    <form method="get" action="{{ url_for('index') }}" class="inline">
+      <input type="text" name="q" placeholder="Search books by title (regex ok)" value="{{ query }}">
+      <button type="submit">Search</button>
+      {% if query %}<a href="{{ url_for('index') }}" class="muted" style="align-self:center;">clear</a>{% endif %}
+    </form>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>Books ({{ books|length }})</h2>
+        <table>
+          <tr><th>Title</th><th>Author</th><th>ISBN</th><th>Status</th></tr>
+          {% for b in books %}
+          <tr>
+            <td>{{ b.title }}</td>
+            <td>{{ b.author }}</td>
+            <td>{{ b.isbn }}</td>
+            <td>
+              {% if b.is_issued %}
+                <span class="tag issued">Issued → {{ b.issued_to }}</span>
+              {% else %}
+                <span class="tag avail">Available</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+        <p class="muted">Unique authors: {{ unique_authors|join(', ') }}</p>
+
+        <h2 style="margin-top:22px;">Add Book</h2>
+        <form method="post" action="{{ url_for('add_book') }}" class="inline">
+          <input name="title" placeholder="Title" required>
+          <input name="author" placeholder="Author" required>
+          <input name="isbn" placeholder="ISBN" required>
+          <button type="submit">Add</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Issue a Book</h2>
+        <form method="post" action="{{ url_for('issue') }}" class="inline">
+          <input name="isbn" placeholder="ISBN" required>
+          <input name="member_id" placeholder="Member ID" required>
+          <button type="submit">Issue</button>
+        </form>
+        <h2 style="margin-top:18px;">Return a Book</h2>
+        <form method="post" action="{{ url_for('do_return') }}" class="inline">
+          <input name="isbn" placeholder="ISBN" required>
+          <input name="days_late" type="number" min="0" placeholder="Days late" value="0">
+          <button type="submit">Return</button>
+        </form>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Members ({{ members|length }})</h2>
+        <table>
+          <tr><th>Name</th><th>ID</th><th>Type</th><th>Books held</th><th>Max</th></tr>
+          {% for m in members %}
+          <tr>
+            <td>{{ m.name }}</td>
+            <td>{{ m.member_id }}</td>
+            <td>{{ m.__class__.__name__ }}</td>
+            <td>{{ m.books_held|join(', ') if m.books_held else '—' }}</td>
+            <td>{{ m.max_books }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+
+        <h2 style="margin-top:22px;">Register Member</h2>
+        <form method="post" action="{{ url_for('register_member') }}" class="inline">
+          <select name="kind">
+            <option value="Student">Student</option>
+            <option value="Faculty">Faculty</option>
+          </select>
+          <input name="name" placeholder="Name" required>
+          <input name="member_id" placeholder="Member ID" required>
+          <input name="email" placeholder="Email" required>
+          <input name="phone" placeholder="10-digit phone" required>
+          <input name="roll_no" placeholder="Roll No (student)">
+          <input name="department" placeholder="Department (faculty)">
+          <button type="submit">Register</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>
